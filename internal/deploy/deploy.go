@@ -159,7 +159,7 @@ func Run(ctx context.Context, opts Options) *Outcome {
 	if err := state.EnsureDir(pd); err != nil {
 		return done(StepParse, err, opts.Dry)
 	}
-	renderedComposePath := filepath.Join(state.Dir(pd), "compose.yml")
+	renderedComposePath := filepath.Join(pd, ".flotilla-compose.yml")
 	if err := os.WriteFile(renderedComposePath, []byte(renderedCompose), 0o644); err != nil {
 		return done(StepParse, fmt.Errorf("write rendered compose: %w", err), opts.Dry)
 	}
