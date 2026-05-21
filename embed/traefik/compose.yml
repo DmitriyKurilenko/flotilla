@@ -1,0 +1,90 @@
+# Traefik bundle for flotilla.
+#
+# This compose file is fetched by install.sh from the flotilla repo and
+# placed at /opt/traefik/compose.yml. It is NOT a flotilla project (no
+# project.yml lives next to it); it's the ingress that every flotilla
+# project routes through, deployed via raw `docker compose` by install.sh.
+#
+# The `flotilla.role=ingress` label is used by install.sh and `flotilla
+# status` to detect that this Traefik instance is flotilla-managed.
+#
+# Updates: re-running install.sh pulls a fresh copy and recreates the
+# container. Manual edits to /opt/traefik/compose.yml will be overwritten.
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: flotilla-traefik
+    restart: always
+
+    command:
+      # ---- Global ----
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+
+      # ---- Entrypoints ----
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Redirect plain HTTP to HTTPS at the ingress.
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+
+      # ---- API / Dashboard ----
+      # The dashboard is exposed on :8080. install.sh binds that port to
+      # 127.0.0.1 only (see `ports:` below) — never reachable from the
+      # public internet. Access via SSH tunnel:
+      #   ssh -L 8080:127.0.0.1:8080 root@<vps>
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+
+      # ---- Docker provider ----
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.watch=true"
+      - "--providers.docker.network=proxy"
+
+      # ---- ACME (Let's Encrypt) ----
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+
+      # ---- Logging ----
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+
+    ports:
+      # Public HTTP / HTTPS.
+      - "80:80"
+      - "443:443"
+      # Dashboard bound to localhost only.
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/traefik/letsencrypt:/letsencrypt
+      - /opt/traefik/logs:/var/log/traefik
+
+    labels:
+      # Used by install.sh (step 6) and `flotilla status` to identify the
+      # flotilla-managed ingress.
+      - "flotilla.role=ingress"
+
+    networks:
+      - proxy
+
+    healthcheck:
+      # Hits Traefik's own API on the loopback inside the container.
+      test:
+        ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/version >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  proxy:
+    external: true
+    name: proxy

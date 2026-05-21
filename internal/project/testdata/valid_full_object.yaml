@@ -1,0 +1,8 @@
+version: 1
+name: my-app
+domain: my-app.example.com
+path: /opt/my-app
+description: An example multi-port service that requires an explicit https_entrypoint.port.
+https_entrypoint:
+  service: web
+  port: 8000

@@ -1,0 +1,169 @@
+# prvms.crm — migrated to the flotilla contract.
+#
+# Differences vs. the legacy vps-deployment/crm_prvms/docker-compose.yml:
+#   - file is `compose.yml` at the project root (no symlink dance)
+#   - all healthchecks hit 127.0.0.1, never localhost   (lint L006)
+#   - every Traefik-enabled service declares
+#       traefik.docker.network=proxy  AND  networks: [proxy]   (lint L002)
+#   - the three routers that share Host(`crm.prvms.ru`) each carry an
+#     explicit priority                                          (lint L003)
+#   - no HEALTHCHECK in any Dockerfile (kept in compose, overridable) (L004)
+#
+# project.yml has no https_entrypoint (multi-router), so labels are
+# hand-written here and L008 stays satisfied.
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-platform_db}
+      POSTGRES_USER: ${DB_USER:-platform}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-platform} -d ${DB_NAME:-platform_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: prvms-crm-web:latest
+    restart: unless-stopped
+    command: >
+      gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8000 --workers 2 --timeout 120
+    expose:
+      - "8000"
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
+      DATABASE_URL: postgres://${DB_USER:-platform}:${DB_PASSWORD}@db:5432/${DB_NAME:-platform_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      ALLOWED_HOSTS: ${PUBLIC_HOSTNAME}
+      SHOW_PUBLIC_IF_NO_TENANT_FOUND: "True"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/healthz -o /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.crm-api.rule=Host(`${PUBLIC_HOSTNAME}`) && (PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/ws`) || Path(`/healthz`))"
+      - "traefik.http.routers.crm-api.entrypoints=websecure"
+      - "traefik.http.routers.crm-api.tls=true"
+      - "traefik.http.routers.crm-api.tls.certresolver=le"
+      - "traefik.http.routers.crm-api.priority=100"
+      - "traefik.http.routers.crm-api.service=crm-api"
+      - "traefik.http.services.crm-api.loadbalancer.server.port=8000"
+
+  frontend-app:
+    image: prvms-crm-frontend:latest
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - proxy
+    depends_on:
+      - web
+    # nginx serving the SPA: no healthcheck on purpose (busybox wget +
+    # nginx IPv4-only is the trap that caused the original outage; the
+    # static server is reliable enough that Traefik treating a
+    # no-healthcheck container as healthy is the safer default).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # /static — highest priority among the frontend routes.
+      - "traefik.http.routers.crm-static.rule=Host(`${PUBLIC_HOSTNAME}`) && PathPrefix(`/static`)"
+      - "traefik.http.routers.crm-static.entrypoints=websecure"
+      - "traefik.http.routers.crm-static.tls=true"
+      - "traefik.http.routers.crm-static.tls.certresolver=le"
+      - "traefik.http.routers.crm-static.priority=50"
+      - "traefik.http.routers.crm-static.service=crm-frontend"
+      # SPA catch-all — lowest priority.
+      - "traefik.http.routers.crm-spa.rule=Host(`${PUBLIC_HOSTNAME}`)"
+      - "traefik.http.routers.crm-spa.entrypoints=websecure"
+      - "traefik.http.routers.crm-spa.tls=true"
+      - "traefik.http.routers.crm-spa.tls.certresolver=le"
+      - "traefik.http.routers.crm-spa.priority=1"
+      - "traefik.http.routers.crm-spa.service=crm-frontend"
+      - "traefik.http.services.crm-frontend.loadbalancer.server.port=80"
+
+  celery:
+    image: prvms-crm-web:latest
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency=2
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
+      DATABASE_URL: postgres://${DB_USER:-platform}:${DB_PASSWORD}@db:5432/${DB_NAME:-platform_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    healthcheck:
+      disable: true
+
+  celery-beat:
+    image: prvms-crm-web:latest
+    restart: unless-stopped
+    command: celery -A config beat -l info
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
+      DATABASE_URL: postgres://${DB_USER:-platform}:${DB_PASSWORD}@db:5432/${DB_NAME:-platform_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    healthcheck:
+      disable: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+  proxy:
+    external: true
+    name: proxy

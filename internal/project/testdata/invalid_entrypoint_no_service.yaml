@@ -1,0 +1,6 @@
+version: 1
+name: crm
+domain: crm.example.com
+path: /opt/crm
+https_entrypoint:
+  port: 8000

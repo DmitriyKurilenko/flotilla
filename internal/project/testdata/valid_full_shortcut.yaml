@@ -1,0 +1,6 @@
+version: 1
+name: crm_prvms
+domain: crm.prvms.ru
+path: /opt/crm_prvms
+description: PRVMS CRM platform (Django + Vue SPA)
+https_entrypoint: web

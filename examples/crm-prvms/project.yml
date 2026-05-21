@@ -1,0 +1,17 @@
+# Real-world multi-router project: the prvms.crm platform.
+#
+# This is the MIGRATION TARGET for the legacy
+# vps-deployment/crm_prvms/docker-compose.yml. crm_prvms has three
+# Traefik routers on one host (api / spa / static, by path prefix), so
+# it is NOT a candidate for `https_entrypoint` (which handles only the
+# one-service-one-endpoint case). The routing stays as hand-written
+# labels in compose.yml; project.yml only carries what compose can't
+# express.
+#
+# Validate without deploying:
+#   flotilla deploy --dry examples/crm-prvms
+version: 1
+name: crm_prvms
+domain: crm.prvms.ru
+path: /opt/crm_prvms
+description: PRVMS CRM platform (multi-tenant Django + Vue SPA, 3 path-prefix routers)

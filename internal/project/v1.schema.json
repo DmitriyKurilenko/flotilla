@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DmitriyKurilenko/flotilla/main/internal/project/v1.schema.json",
+  "title": "flotilla project.yml v1",
+  "description": "Schema for project.yml v1. See docs/ARCHITECTURE.md §3 for the rationale of each field. This schema is the canonical contract; the Go parser dispatches on the `version` field at the top of the file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "name", "domain", "path"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Must be 1 for this schema. The parser uses this to select which validation rules to apply."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Project identifier. Lowercase letters, digits, underscores, hyphens; must start with a letter. Used in logs, status output, .flotilla/state.json, and as the Traefik router/service base-name when auto-cert is active (underscores are replaced with hyphens in the Traefik name)."
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 253,
+      "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$",
+      "description": "Primary HTTPS hostname. Lowercase ASCII only. Used for the `Host()` Traefik rule, for ${domain} template expansion in the built-in smoke test, and for matching the project's routers in the Traefik API. IDN domains must be passed in punycode form. Overall length is constrained by minLength/maxLength."
+    },
+    "path": {
+      "type": "string",
+      "minLength": 2,
+      "pattern": "^/[^\\s]+$",
+      "description": "Absolute path on the VPS where this project lives. flotilla maintains symlinks here for compose.yml and .env.example. Explicit; no `/opt/${name}` default."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Optional human-readable summary. Surfaces in `flotilla status` listings."
+    },
+    "https_entrypoint": {
+      "description": "Optional. When set, flotilla generates the Traefik labels for the named compose service at deploy time. Mutually exclusive with hand-written traefik.* labels on that service (enforced by lint rule L008).",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Shortcut form: a compose service name. The port is inferred from compose; if the service has multiple `expose`/`ports` entries, the deploy fails and the explicit form below is required."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["service"],
+          "properties": {
+            "service": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          "description": "Explicit form. Required when the compose service has multiple expose/ports entries."
+        }
+      ]
+    }
+  }
+}

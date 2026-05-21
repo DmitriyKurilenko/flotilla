@@ -1,0 +1,4 @@
+version: 1
+name: Crm_Prvms
+domain: crm.prvms.ru
+path: /opt/crm_prvms

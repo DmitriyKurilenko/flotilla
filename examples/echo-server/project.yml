@@ -1,0 +1,16 @@
+# Echo Server — lightweight HTTP echo from GitHub.
+#
+# Tests the explicit https_entrypoint object form (service + port).
+# The echo server exposes port 80; flotilla will generate the Traefik
+# labels into .flotilla/compose.override.yml at deploy time.
+#
+# Validate without deploying:
+#   flotilla deploy --dry examples/echo-server
+version: 1
+name: echo-server
+domain: echo.example.com
+path: /opt/echo-server
+description: Lightweight echo server (explicit https_entrypoint port form)
+https_entrypoint:
+  service: app
+  port: 80

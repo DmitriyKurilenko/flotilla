@@ -1,0 +1,74 @@
+# GoReleaser config. See https://goreleaser.com for documentation.
+version: 2
+
+project_name: flotilla
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: flotilla
+    main: ./cmd/flotilla
+    binary: flotilla
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .CommitDate }}
+
+archives:
+  - id: flotilla
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats:
+      - tar.gz
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ .Version }}-snapshot+{{ .ShortCommit }}"
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - "^chore:"
+      - "^docs:"
+      - "^test:"
+      - "^build:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  github:
+    owner: DmitriyKurilenko
+    name: flotilla
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "v{{ .Version }}"

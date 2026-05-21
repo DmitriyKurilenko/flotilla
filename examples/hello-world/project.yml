@@ -1,0 +1,13 @@
+# Simplest possible flotilla project: one service, one domain.
+#
+# `https_entrypoint` makes flotilla generate the Traefik labels at
+# deploy time — note compose.yml has ZERO traefik.* labels.
+#
+# Validate without deploying:
+#   flotilla deploy --dry examples/hello-world
+version: 1
+name: hello-world
+domain: hello.example.com
+path: /opt/hello-world
+description: Minimal single-service example (auto-cert via https_entrypoint)
+https_entrypoint: web

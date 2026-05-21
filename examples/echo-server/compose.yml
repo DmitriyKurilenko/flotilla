@@ -1,0 +1,17 @@
+# Echo Server — https://github.com/Ealenn/Echo-Server
+# Lightweight Alpine-based HTTP echo. Used here to test the explicit
+# https_entrypoint object form (service + port) and a compose healthcheck.
+services:
+  app:
+    image: ealen/echo-server:latest
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      PORT: "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

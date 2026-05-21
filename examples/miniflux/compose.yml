@@ -1,0 +1,56 @@
+# Miniflux — https://github.com/miniflux/v2
+# Multi-service project: Postgres + Miniflux application.
+# Tests manual Traefik labels, depends_on with service_healthy,
+# required env vars (L007), and multi-service deployment.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: miniflux
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - miniflux_db:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U miniflux"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app:
+    image: miniflux/miniflux:latest
+    restart: unless-stopped
+    expose:
+      - "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://miniflux:${DB_PASSWORD}@db/miniflux?sslmode=disable
+      RUN_MIGRATIONS: 1
+    networks:
+      - backend
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.miniflux.rule=Host(`${DOMAIN:-rss.example.com}`)"
+      - "traefik.http.routers.miniflux.entrypoints=websecure"
+      - "traefik.http.routers.miniflux.tls=true"
+      - "traefik.http.routers.miniflux.tls.certresolver=le"
+      - "traefik.http.routers.miniflux.service=miniflux"
+      - "traefik.http.services.miniflux.loadbalancer.server.port=8080"
+
+volumes:
+  miniflux_db:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+  proxy:
+    external: true
+    name: proxy

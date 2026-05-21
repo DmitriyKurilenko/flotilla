@@ -1,0 +1,13 @@
+# File Browser — lightweight web file manager from GitHub.
+#
+# Tests the auto-cert shortcut form (https_entrypoint: app) plus a
+# persistent volume for the SQLite database.
+#
+# Validate without deploying:
+#   flotilla deploy --dry examples/filebrowser
+version: 1
+name: filebrowser
+domain: files.example.com
+path: /opt/filebrowser
+description: Lightweight web file manager with volume persistence
+https_entrypoint: app

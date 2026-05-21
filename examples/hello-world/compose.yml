@@ -1,0 +1,17 @@
+# No traefik.* labels here on purpose — project.yml's https_entrypoint
+# tells flotilla to generate them into .flotilla/compose.override.yml
+# at deploy time. Mixing both would trip lint rule L008.
+services:
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    expose:
+      - "80"
+    # 127.0.0.1 (not localhost): busybox wget in nginx:alpine does not
+    # fall back IPv6→IPv4. See lint rule L006.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

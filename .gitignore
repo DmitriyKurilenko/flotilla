@@ -1,0 +1,24 @@
+# Compiled binary
+/flotilla
+/bin/
+/dist/
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local flotilla state (the .flotilla/ convention belongs to downstream
+# projects, but ignore it here as well in case anyone runs the CLI against
+# a project under this repo's tree during development).
+.flotilla/

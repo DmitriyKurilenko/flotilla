@@ -1,0 +1,13 @@
+# Miniflux — minimalist RSS reader from GitHub.
+#
+# Tests multi-service deployment (Postgres + application), manual
+# Traefik labels, depends_on with condition: service_healthy, and
+# required environment variables (lint rule L007).
+#
+# Validate without deploying:
+#   flotilla deploy --dry examples/miniflux
+version: 1
+name: miniflux
+domain: rss.example.com
+path: /opt/miniflux
+description: Minimalist RSS reader (multi-service with Postgres, manual Traefik labels)
