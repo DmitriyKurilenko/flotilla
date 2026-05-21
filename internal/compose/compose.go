@@ -368,14 +368,7 @@ type rawHealthcheck struct {
 }
 
 func (h rawHealthcheck) toHealthcheck() Healthcheck {
-	return Healthcheck{
-		Test:        h.Test,
-		Interval:    h.Interval,
-		Timeout:     h.Timeout,
-		Retries:     h.Retries,
-		StartPeriod: h.StartPeriod,
-		Disable:     h.Disable,
-	}
+	return Healthcheck(h)
 }
 
 func parseNetwork(name string, blob json.RawMessage) (Network, error) {
@@ -472,12 +465,7 @@ type psRecord struct {
 func psToStatus(in []psRecord) []ContainerStatus {
 	out := make([]ContainerStatus, len(in))
 	for i, r := range in {
-		out[i] = ContainerStatus{
-			Service: r.Service,
-			Name:    r.Name,
-			State:   r.State,
-			Health:  r.Health,
-		}
+		out[i] = ContainerStatus(r)
 	}
 	return out
 }

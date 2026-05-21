@@ -64,7 +64,13 @@ detect_platform() {
 # ─── step 2: Docker ──────────────────────────────────────────────────
 ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    ok "Docker present"
+    # Verify Docker is new enough for the API version Traefik expects.
+    ver_major="$(docker version --format '{{.Server.Version}}' | cut -d. -f1)"
+    ver_minor="$(docker version --format '{{.Server.Version}}' | cut -d. -f2)"
+    if [ "$ver_major" -lt 25 ] || { [ "$ver_major" -eq 25 ] && [ "$ver_minor" -lt 0 ]; }; then
+      die "Docker ${ver_major}.${ver_minor} is too old. Minimum required is 25.0. Upgrade Docker and re-run install.sh."
+    fi
+    ok "Docker present (${ver_major}.${ver_minor})"
     return
   fi
   case "$OS_ID" in
@@ -122,17 +128,40 @@ detect_ingress() {
     existing="$(docker ps --filter 'ancestor=traefik' --format '{{.ID}}' 2>/dev/null | head -n1 || true)"
   fi
   if [ -n "$existing" ]; then
+    # Verify the existing Traefik has Docker provider enabled; without
+    # it flotilla projects' labels are invisible to the ingress.
+    has_docker_provider="$(docker inspect --format='{{range .Config.Cmd}}{{.}} {{end}}' "$existing" 2>/dev/null | grep -o 'providers.docker=true' || true)"
+    if [ -z "$has_docker_provider" ]; then
+      existing_name="$(docker inspect --format='{{.Name}}' "$existing" 2>/dev/null | sed 's|^/||')"
+      [ -z "$existing_name" ] && existing_name="$existing"
+      info "removing existing Traefik (container ${existing_name}) — it does not have Docker provider and will not work with flotilla"
+      docker stop "$existing_name" >/dev/null 2>&1 || true
+      docker rm   "$existing_name" >/dev/null 2>&1 || true
+      ok "removed ${existing_name}"
+      INGRESS_STATE="deploy"
+      return
+    fi
     INGRESS_STATE="reuse"
     ok "existing Traefik detected (container ${existing}); reusing it"
     return
   fi
 
-  # Any non-flotilla container bound to host port 80 or 443?
-  busy="$(docker ps --format '{{.ID}} {{.Names}} {{.Ports}}' 2>/dev/null | grep -E ':80->|:443->' || true)"
+  # Any container bound to host port 80, 443, or 8080?
+  # 8080 is Traefik dashboard/API (127.0.0.1:8080); if occupied,
+  # `docker compose up` for Traefik will fail with a cryptic error.
+  busy="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -E ':80->|:443->|:8080->' || true)"
   if [ -n "$busy" ]; then
-    INGRESS_STATE="conflict"
-    printf "%s\n" "$busy" >&2
-    die "ports 80/443 are bound by the container(s) above. Stop them before re-running install.sh, or keep them as your ingress (flotilla will not manage routing/certs in that mode)."
+    # Extract every conflicting Docker container name and remove them.
+    offender_names="$(printf '%s' "$busy" | awk '{print $1}')"
+    info "removing containers that block ports 80/443/8080"
+    printf '%s\n' "$offender_names" | while IFS= read -r name; do
+      [ -z "$name" ] && continue
+      docker stop "$name" >/dev/null 2>&1 || true
+      docker rm   "$name" >/dev/null 2>&1 || true
+      ok "removed ${name}"
+    done
+    INGRESS_STATE="deploy"
+    return
   fi
   INGRESS_STATE="deploy"
 }

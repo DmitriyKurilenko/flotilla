@@ -8,6 +8,6 @@
 #   flotilla deploy --dry examples/miniflux
 version: 1
 name: miniflux
-domain: rss.example.com
+domain: miniflux.prvms.ru
 path: /opt/miniflux
 description: Minimalist RSS reader (multi-service with Postgres, manual Traefik labels)

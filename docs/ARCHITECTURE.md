@@ -216,13 +216,19 @@ bootstrap; the flotilla Go binary is **not** involved until step 8.
 6. **Detect ingress state.**
    - If a container labelled `flotilla.role=ingress` OR a container
      running the `traefik` image is attached to the `proxy` network →
-     log «Traefik already present, reusing» and skip to step 8.
-   - Else, if a different container is bound to host port 80 or 443
-     (`docker ps --format '{{.Ports}}' | grep ':80->' / ':443->'`) →
-     fail fast: «Ports 80/443 are bound by container `<name>` (id
-     `<id>`). Stop that container before re-running `install.sh`, or
-     keep using it as your ingress (flotilla won't manage routing/certs
-     in that mode).» No prompt, no flag — operator decides explicitly.
+     verify it has `--providers.docker=true` in its command. If not,
+     **remove it automatically** (`docker stop && docker rm`) and set
+     `INGRESS_STATE=deploy` so a flotilla-compatible Traefik is created.
+     If the check passes, log «Traefik already present, reusing» and
+     skip to step 8.
+   - Else, if any Docker container is bound to host port 80, 443, or 8080
+     (`docker ps --format '{{.Ports}}' | grep ':80->' / ':443->' /
+     ':8080->'`) → **remove the conflicting containers automatically**
+     (`docker stop && docker rm`) and set `INGRESS_STATE=deploy`.
+     Port 8080 is included because Traefik's dashboard binds to
+     `127.0.0.1:8080`; if occupied, `docker compose up` fails with a
+     cryptic Docker networking error. Flotilla assumes it owns the
+     ingress on the `proxy` network and cleans up obstacles.
    - Else (ports free, no existing Traefik) → continue.
 7. **Deploy Traefik.** The Traefik bundle lives in the flotilla repo at
    `embed/traefik/{compose.yml,project.yml,.env.example}`. `install.sh`

@@ -13,7 +13,7 @@
 
 services:
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7
     container_name: flotilla-traefik
     restart: always
 
@@ -61,6 +61,11 @@ services:
       - "443:443"
       # Dashboard bound to localhost only.
       - "127.0.0.1:8080:8080"
+
+    environment:
+      # Force the Docker client inside Traefik to the current API version.
+      # Traefik's embedded SDK defaults to v1.24, which modern daemons reject.
+      DOCKER_API_VERSION: "1.54"
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

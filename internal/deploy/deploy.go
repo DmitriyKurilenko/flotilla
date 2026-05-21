@@ -147,10 +147,30 @@ func Run(ctx context.Context, opts Options) *Outcome {
 	}
 	log.Info("parsed project.yml", "name", proj.Name, "domain", proj.Domain)
 
+	// ── Step: template substitution ────────────────────────────────
+	// Replace ${domain} placeholder in compose.yml with the actual domain.
+	// This lets manual-labels projects reference the project's domain
+	// without duplicating it in .env.
+	rawCompose, err := os.ReadFile(composePath)
+	if err != nil {
+		return done(StepParse, fmt.Errorf("read compose.yml: %w", err), opts.Dry)
+	}
+	renderedCompose := strings.ReplaceAll(string(rawCompose), "${domain}", proj.Domain)
+	if err := state.EnsureDir(pd); err != nil {
+		return done(StepParse, err, opts.Dry)
+	}
+	renderedComposePath := filepath.Join(state.Dir(pd), "compose.yml")
+	if err := os.WriteFile(renderedComposePath, []byte(renderedCompose), 0o644); err != nil {
+		return done(StepParse, fmt.Errorf("write rendered compose: %w", err), opts.Dry)
+	}
+	if !opts.Dry {
+		log.Info("rendered compose.yml", "path", renderedComposePath)
+	}
+
 	// ── Step: autocert ─────────────────────────────────────────────
 	var overridePath string
 	if proj.HTTPSEntrypoint != nil {
-		compForPort, cerr := composeLoad(ctx, composePath, envPath)
+		compForPort, cerr := composeLoad(ctx, renderedComposePath, envPath)
 		if cerr != nil {
 			return done(StepAutocert, fmt.Errorf("autocert needs a parseable compose.yml: %w", cerr), opts.Dry)
 		}
@@ -173,13 +193,13 @@ func Run(ctx context.Context, opts Options) *Outcome {
 	}
 
 	// ── Step: lint ─────────────────────────────────────────────────
-	// Lint validates the AUTHORED compose.yml, not the merged override.
-	rawCompose, _ := os.ReadFile(composePath) // nil is fine; L001 reports it
-	authoredCompose, _ := composeLoad(ctx, composePath, envPath)
+	// Lint validates the rendered compose.yml (with ${domain} substituted),
+	// not the merged override.
+	authoredCompose, _ := composeLoad(ctx, renderedComposePath, envPath)
 	lintCtx := contract.Context{
 		Project:         proj,
 		Compose:         authoredCompose, // may be nil → L001 fails
-		RawCompose:      rawCompose,
+		RawCompose:      []byte(renderedCompose),
 		DockerfilePaths: findDockerfiles(pd),
 		EnvPath:         envPath,
 		EnvExamplePath:  envExample,
@@ -200,7 +220,7 @@ func Run(ctx context.Context, opts Options) *Outcome {
 	}
 
 	// ── Step: env ──────────────────────────────────────────────────
-	refs, err := envcheck.ScanCompose(rawCompose)
+	refs, err := envcheck.ScanCompose([]byte(renderedCompose))
 	if err != nil {
 		return done(StepEnv, fmt.Errorf("scan compose env refs: %w", err), opts.Dry)
 	}
@@ -232,7 +252,7 @@ func Run(ctx context.Context, opts Options) *Outcome {
 	}
 
 	// ── Step: compose up ───────────────────────────────────────────
-	composeFiles := []string{composePath}
+	composeFiles := []string{renderedComposePath}
 	if overridePath != "" {
 		composeFiles = append(composeFiles, overridePath)
 	}

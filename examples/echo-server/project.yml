@@ -8,7 +8,7 @@
 #   flotilla deploy --dry examples/echo-server
 version: 1
 name: echo-server
-domain: echo.example.com
+domain: echo.prvms.ru
 path: /opt/echo-server
 description: Lightweight echo server (explicit https_entrypoint port form)
 https_entrypoint:

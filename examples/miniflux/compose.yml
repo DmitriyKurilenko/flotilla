@@ -37,7 +37,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.miniflux.rule=Host(`${DOMAIN:-rss.example.com}`)"
+      - "traefik.http.routers.miniflux.rule=Host(`${domain}`)"
       - "traefik.http.routers.miniflux.entrypoints=websecure"
       - "traefik.http.routers.miniflux.tls=true"
       - "traefik.http.routers.miniflux.tls.certresolver=le"

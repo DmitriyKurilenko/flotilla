@@ -64,17 +64,18 @@ stop and ask — do not guess.
 ## Validation baseline (no Docker daemon needed for unit work)
 
 Go 1.22+/1.23 (locally, or `golang:1.23-alpine` with the module cache
-mounted):
+mounted). Required tooling:
 
 ```
 gofmt -l .            # must be empty
 go build ./...
 go vet ./... && go vet -tags=integration ./...
 go test ./...         # every package must be ok
+golangci-lint run     # same linters as CI; must be installed locally
 sh -n install.sh && shellcheck install.sh
 ```
 
-`make check` = fmt+vet+test. Integration tests are build-tagged and
+`make check` = fmt+vet+lint+test. Integration tests are build-tagged and
 need real Docker:
 
 ```

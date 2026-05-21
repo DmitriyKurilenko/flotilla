@@ -7,7 +7,7 @@
 #   flotilla deploy --dry examples/hello-world
 version: 1
 name: hello-world
-domain: hello.example.com
+domain: hello.prvms.ru
 path: /opt/hello-world
 description: Minimal single-service example (auto-cert via https_entrypoint)
 https_entrypoint: web

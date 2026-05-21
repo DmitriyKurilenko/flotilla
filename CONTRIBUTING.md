@@ -9,14 +9,19 @@ the doc, but never silently.
 
 ## Local setup
 
-You need Go 1.22+ and `make`.
+You need Go 1.22+, `make`, and `golangci-lint` (same linters as CI).
 
 ```bash
 git clone https://github.com/DmitriyKurilenko/flotilla.git
 cd flotilla
+
+# Install golangci-lint (once) — must be in $PATH
+# https://golangci-lint.run/usage/install/#local-installation
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
+
 make build              # produces bin/flotilla
 make test               # unit tests
-make check              # fmt + vet + test (pre-commit suite)
+make check              # fmt + vet + lint + test (pre-commit suite)
 ```
 
 For integration tests (slow, needs Docker):

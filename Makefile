@@ -48,7 +48,7 @@ install: ## Install flotilla into $GOPATH/bin
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist coverage.out coverage.html
 
-check: fmt vet test ## Local pre-commit checks (formats sources)
+check: fmt vet lint test ## Local pre-commit checks (formats sources, vet, lint, test)
 	@echo "Local checks passed."
 
 ci: vet test-race ## CI suite (no formatter writes)

@@ -7,7 +7,7 @@
 #   flotilla deploy --dry examples/filebrowser
 version: 1
 name: filebrowser
-domain: files.example.com
+domain: filebrowser.prvms.ru
 path: /opt/filebrowser
 description: Lightweight web file manager with volume persistence
 https_entrypoint: app
